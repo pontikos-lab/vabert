@@ -1,0 +1,16 @@
+!*.ipynb
+!*.py
+!*.md
+!*/
+**/__pycache__
+
+**/logs
+**logs_pred
+**/results
+**/models
+**/trained_models
+**/data
+**/.ipynb_checkpoints
+**/runs
+
+.vector_cache

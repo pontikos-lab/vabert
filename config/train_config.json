@@ -1,0 +1,12 @@
+{
+  "DATA_FILE": "data/annotatedVA.jsonl",
+  "MAX_EPOCH": 300,
+  "MAX_LEN": 512,
+  "BATCH_SIZE": 16,
+  "SEED": 2018,
+  "VAL_SIZE": 0.2,
+  "CHECKPOINT": "dmis-lab/biobert-v1.1",
+  "MAX_GRAD_NORM": 1,
+  "FULL_FINETUNING": true,
+  "DEVICE": "cuda"
+}
