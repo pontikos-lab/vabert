@@ -1,5 +1,5 @@
 {
-  "DATA_FILE": "data/annotatedVA.jsonl",
+  "DATA_FILE": "data/AnnotatedVA.csv",
   "MAX_EPOCH": 300,
   "MAX_LEN": 512,
   "BATCH_SIZE": 16,

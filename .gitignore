@@ -12,5 +12,7 @@
 **/data
 **/.ipynb_checkpoints
 **/runs
+models_temp
+tokenizers
 
 .vector_cache

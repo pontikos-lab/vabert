@@ -13,6 +13,7 @@ from copy import deepcopy
 import os
 import pandas as pd
 import ast
+import math
 
 
 # ============================================================
@@ -39,7 +40,7 @@ def jsonl2labelstudio(input_file, output_file):
 					"value":{
 						"start": span['start'],
 						"end": span['end'],
-						"labels":["pnt"]
+						"labels":["pnt"] #TODO: fix this
 					}
 				}
 			)
@@ -207,6 +208,9 @@ def parse_annfile(filepath):
             text = row['text']
             _id = row['id']
             spans = []
+            if isinstance(row['label'], float) and math.isnan(row['label']): # check if label is a nan value
+                continue
+
             for span in ast.literal_eval(row['label']): # example of a span  {""start"": 223, ""end"": 236, ""labels"": [""pnt""]}
                 start = span['start']
                 end = span['end']
@@ -224,6 +228,8 @@ def parse_annfile(filepath):
             text = ann['data']['text']
             _id = ann['id']
             spans = []
+            if isinstance(ann['annotations'][0]['result'], float) and math.isnan(ann['annotations'][0]['result']): # check if label is a nan value
+                continue
             for span in ann['annotations'][0]['result']: # example of a span  {""start"": 223, ""end"": 236, ""labels"": [""pnt""]}
                 start = span['value']['start']
                 end = span['value']['end']
