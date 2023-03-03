@@ -13,49 +13,105 @@ from copy import deepcopy
 import os
 import pandas as pd
 import ast
+import math
+from transformers import BatchEncoding
+from tokenizers import Encoding
 
 
-# ============================================================
-#                Label Studio
-# ============================================================
-def jsonl2labelstudio(input_file, output_file):
-	"""Convert jsonl's NER file to labelstudio import file (json)
-	"""
-	all_samples = []
-	letters = [l for l in srsly.read_jsonl(os.path.join(input_file))]
-	data = {}
-	sample = {}
-	for letter in letters: # loop thr all letters (and annotation) in one epidoe
-		data['text'] = letter['text']
-		sample['data'] = data
-		result_dict = {}
-		result = []
-		for span in letter['spans']:
-			result.append(
-				{
-					"from_name":"label",
-					"to_name":"text",
-					"type":"labels",
-					"value":{
-						"start": span['start'],
-						"end": span['end'],
-						"labels":["pnt"]
-					}
-				}
-			)
-		result_dict['result'] = result
-		sample['annotations'] = [result_dict]
-		all_samples.append(deepcopy(sample))
-
-	# Saving 
-	data_written = srsly.json_dumps(all_samples, indent=2)
-
-	with open(output_file, 'w') as f:
-		f.write(data_written)
 
 # ============================================================
 #                Processing/Converting tokens
 # ============================================================
+def align_tokens_and_annotations_bio(ann, tokenizer):
+    """
+    Ref: https://www.lighttag.io/blog/sequence-labeling-with-transformers/example
+    """
+    tokenized_batch : BatchEncoding = tokenizer(ann['text'])
+    tokenized_text : Encoding = tokenized_batch[0]
+
+    tokens = tokenized_text.tokens
+    aligned_labels = ["O"]*len(tokens) # Make a list to store our labels the same length as our tokens
+
+
+    for span in ann['spans']:
+        annotation_token_ix_set = (
+            set()
+        )  # A set that stores the token indices of the annotation
+        for char_ix in range(span["start"], span["end"]):
+
+            token_ix = tokenized_text.char_to_token(char_ix)
+            if token_ix is not None:
+                annotation_token_ix_set.add(token_ix)
+        if len(annotation_token_ix_set) == 1:
+            # If there is only one token
+            token_ix = annotation_token_ix_set.pop()
+            prefix = (
+                "B"  # This annotation spans one token so is prefixed with U for unique
+            )
+            aligned_labels[token_ix] = f"{prefix}-{span['label']}"
+
+        else:
+
+            last_token_in_anno_ix = len(annotation_token_ix_set) - 1
+            for num, token_ix in enumerate(sorted(annotation_token_ix_set)):
+                if num == 0:
+                    prefix = "B"
+                elif num == last_token_in_anno_ix:
+                    prefix = "I"  # Its the last token
+                else:
+                    prefix = "I"  # We're inside of a multi token annotation
+                aligned_labels[token_ix] = f"{prefix}-{span['label']}"
+    return tokens, aligned_labels
+
+def get_ents_from_bio(tokens: BatchEncoding, labels, sent, verbose=False):
+    """convert token-level to character span-level data
+    """
+    offsets = tokens[0].offsets[1:-1]
+
+    # select entities
+    entities = []
+    entity_start = None
+    entity_type = None
+
+    for i, label in enumerate(labels):
+        if label.startswith('B-'):
+            if entity_type is not None:
+                entities.append((entity_type, entity_start, i-1))
+            entity_type = label[2:]
+            entity_start = i
+        elif label == 'O':
+            if entity_type is not None:
+                entities.append((entity_type, entity_start, i-1))
+                entity_type = None
+                entity_start = None
+        elif label.startswith('I-'):
+            if entity_type is not None and label[2:] == entity_type:
+                pass
+            else:
+                entities.append((entity_type, entity_start, i-1))
+                entity_type = None
+                entity_start = None
+
+    # Check if there is any remaining entity at the end of the list
+    if entity_type is not None:
+        entities.append((entity_type, entity_start, len(labels)-1))
+    
+    # Print the extracted entities
+    spans = []
+    for entity in entities:
+        start = offsets[entity[1]][0]
+        end = offsets[entity[2]][1]
+        label = entity[0]
+        _str = sent[start:end]
+        if verbose:
+            print(f"{entity}\tstart:{start}, end:{end}, str:{_str}")
+        spans.append({"str":_str,
+                      "label":label,
+                      "start":start,
+                      "end":end,
+                    })
+    return spans  
+
 def tokenize_and_preserve_labels(sentence, text_labels, tokenizer):
     """Convert normal tokens to bert-like tokens (subword) and preserve the BIO labels
 
@@ -152,9 +208,48 @@ def get_iob_labels(inp_doc: Doc) -> List[str]:
 def assign_entities(doc, token_spans):
     all_spans = []
     for span in token_spans:
-        all_spans.append(Span(doc, span['token_start'], span['token_end']+1, span['label']))
+        all_spans.append(Span(doc, span['start'], span['end']+1, span['label']))
         doc.set_ents(all_spans)
     return doc
+
+
+# ============================================================
+#                Label Studio
+# ============================================================
+def jsonl2labelstudio(input_file, output_file):
+	"""Convert jsonl's NER file to labelstudio import file (json)
+	"""
+	all_samples = []
+	letters = [l for l in srsly.read_jsonl(os.path.join(input_file))]
+	data = {}
+	sample = {}
+	for letter in letters: # loop thr all letters (and annotation) in one epidoe
+		data['text'] = letter['text']
+		sample['data'] = data
+		result_dict = {}
+		result = []
+		for span in letter['spans']:
+			result.append(
+				{
+					"from_name":"label",
+					"to_name":"text",
+					"type":"labels",
+					"value":{
+						"start": span['start'],
+						"end": span['end'],
+						"labels":["pnt"] #TODO: fix this
+					}
+				}
+			)
+		result_dict['result'] = result
+		sample['annotations'] = [result_dict]
+		all_samples.append(deepcopy(sample))
+
+	# Saving 
+	data_written = srsly.json_dumps(all_samples, indent=2)
+
+	with open(output_file, 'w') as f:
+		f.write(data_written)
 
 
 # ============================================================
@@ -207,6 +302,9 @@ def parse_annfile(filepath):
             text = row['text']
             _id = row['id']
             spans = []
+            if isinstance(row['label'], float) and math.isnan(row['label']): # check if label is a nan value
+                continue
+
             for span in ast.literal_eval(row['label']): # example of a span  {""start"": 223, ""end"": 236, ""labels"": [""pnt""]}
                 start = span['start']
                 end = span['end']
@@ -224,6 +322,8 @@ def parse_annfile(filepath):
             text = ann['data']['text']
             _id = ann['id']
             spans = []
+            if isinstance(ann['annotations'][0]['result'], float) and math.isnan(ann['annotations'][0]['result']): # check if label is a nan value
+                continue
             for span in ann['annotations'][0]['result']: # example of a span  {""start"": 223, ""end"": 236, ""labels"": [""pnt""]}
                 start = span['value']['start']
                 end = span['value']['end']

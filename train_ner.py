@@ -16,6 +16,12 @@ from argparse import ArgumentParser
 
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+import operator
+from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split
+
+def index(ls, ids):
+	return operator.itemgetter(*list(ids))(ls)
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "3"  # specify which GPU(s) to be used
@@ -33,18 +39,11 @@ def main(args):
 			args_inp[key.upper()] = args.__dict__[key.upper()]
 	args = Namespace(**args_inp)
 	pprint(args_inp)
+                                                                                                                                                                 
 
-    # Load data
-	dataset = VADataset(args.DATA_FILE)                                                                                                                                                                     
-
-	#  Tokenize and Pad 
-	'''
-	if 'eyebert' in args.CHECKPOINT:
-		tokenizer = RobertaTokenizer.from_pretrained(args.CHECKPOINT, do_lower_case=False)
-	else:
-		tokenizer = BertTokenizer.from_pretrained(args.CHECKPOINT, do_lower_case=False)
-	'''
+	#  Load data, Tokenize and Pad 
 	tokenizer = AutoTokenizer.from_pretrained(args.CHECKPOINT, do_lower_case=False)
+	dataset = VADataset(args.DATA_FILE, tokenizer)    
 
 	dataset.set_params(tokenizer=tokenizer,
 	 				   max_len=args.MAX_LEN,
@@ -52,9 +51,17 @@ def main(args):
                        val_size=args.VAL_SIZE,
 	 				   seed=args.SEED
     )
+
+	train_ids, test_ids = train_test_split(range(len(dataset.sentences)))
+	# Train (train and val)
+	train_sents = index(dataset.sentences, train_ids);	train_tags = index(dataset.tags, train_ids)
+	# Test
+	test_sents = index(dataset.sentences, test_ids); 	test_tags = index(dataset.tags, test_ids)
+
  
 	# Dataloaders
-	train_dataloader, valid_dataloader = dataset.get_dataloaders()
+	train_dataloader = dataset.get_dataloaders(train_sents, train_tags, mode='all')
+	valid_dataloader = dataset.get_dataloaders(test_sents, test_tags, mode='all')
 	tag2idx, tag_values = dataset.get_tag_info()
 	dataset.stats()
 	print('--------------- DATA LOADED ----------------------')

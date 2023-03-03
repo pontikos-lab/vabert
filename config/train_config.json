@@ -1,8 +1,8 @@
 {
-  "DATA_FILE": "data/annotatedVA.jsonl",
+  "DATA_FILE": "data/AnnotatedVA.csv",
   "MAX_EPOCH": 300,
   "MAX_LEN": 512,
-  "BATCH_SIZE": 16,
+  "BATCH_SIZE": 8,
   "SEED": 2018,
   "VAL_SIZE": 0.2,
   "CHECKPOINT": "dmis-lab/biobert-v1.1",
