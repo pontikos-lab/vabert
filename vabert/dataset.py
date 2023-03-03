@@ -6,28 +6,25 @@ from torch.utils.data import TensorDataset, DataLoader, RandomSampler, Sequentia
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from vabert.utils import tokenize_and_preserve_labels, view_all_entities_terminal, parse_annfile
 
-import spacy
 import srsly
 from vabert.utils import character_annotations_to_spacy_doc, get_iob_labels
+from vabert.utils import align_tokens_and_annotations_bio
+import re
+
 
 
 # TODO: Add docstring to functions
 
 class VADataset(Dataset):
-	def __init__(self, filename:str) -> None:
+	def __init__(self, filename:str, tokenizer) -> None:
 		anns = parse_annfile(filename)
-		nlp = spacy.load('tokenizers/super-tokenizer')
 
 		self.sentences = []
 		self.tags = []
 		for ann in anns:
-			try:
-				doc = character_annotations_to_spacy_doc(ann, nlp)
-			except: # when spans overlapped # TODO: handle this
-				continue
-			bio = get_iob_labels(doc)
-			self.sentences.append([str(word) for word in doc])
-			self.tags.append(bio)
+			sents, tags = align_tokens_and_annotations_bio(ann, tokenizer)
+			self.sentences.append(sents)
+			self.tags.append(tags)
 
 		self.tag_values = ['O', 'B-VA', 'I-VA', 'B-Vision', 'I-Vision', 'B-Laterality', 'I-Laterality', 'B-Pinhole', 'I-Pinhole'] # TODO: bad handling, need optimization
 		self.tag_values.append("PAD")
@@ -124,25 +121,19 @@ class VADataset(Dataset):
 	def get_tag_info(self):
 		return self.tag2idx, self.tag_values
 
-	def stats(self, verbose=False):
+	def stats(self):
 		"""Get basics statistics of the dataset
 		"""
 		num_sent_has_ent = 0
 		num_ent = 0
+		pattern = r'^B-'
+
 		for i in range(len(self.tags)):
 			tag = self.tags[i]
 			sent = self.sentences[i]
 			if set(tag) != set('O'):	# sentence with all Os will have set(tag) == {'O'}
 				num_sent_has_ent += 1
-				num_ent += tag.count('B-pnt')
-
-		if verbose:
-			if set(tag) != set('O'):
-				print(tag)
-				print(tag.count('B-pnt'), ' | ', num_ent)
-			else:
-				print('#####', tag)
-			print()
+				num_ent += sum(1 for elem in tag if re.match(pattern, elem))
 
 		print('Total sentences: ', len(self.sentences))
 		print('No. of sentences that have entities: ', num_sent_has_ent)

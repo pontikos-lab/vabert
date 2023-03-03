@@ -14,5 +14,5 @@
 **/runs
 models_temp
 tokenizers
-
+notebooks_private
 .vector_cache

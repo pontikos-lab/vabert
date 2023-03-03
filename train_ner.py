@@ -39,18 +39,11 @@ def main(args):
 			args_inp[key.upper()] = args.__dict__[key.upper()]
 	args = Namespace(**args_inp)
 	pprint(args_inp)
+                                                                                                                                                                 
 
-    # Load data
-	dataset = VADataset(args.DATA_FILE)                                                                                                                                                                     
-
-	#  Tokenize and Pad 
-	'''
-	if 'eyebert' in args.CHECKPOINT:
-		tokenizer = RobertaTokenizer.from_pretrained(args.CHECKPOINT, do_lower_case=False)
-	else:
-		tokenizer = BertTokenizer.from_pretrained(args.CHECKPOINT, do_lower_case=False)
-	'''
+	#  Load data, Tokenize and Pad 
 	tokenizer = AutoTokenizer.from_pretrained(args.CHECKPOINT, do_lower_case=False)
+	dataset = VADataset(args.DATA_FILE, tokenizer)    
 
 	dataset.set_params(tokenizer=tokenizer,
 	 				   max_len=args.MAX_LEN,
