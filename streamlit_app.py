@@ -8,7 +8,7 @@ import streamlit as st
 device = 'cpu'
 checkpoint = "dmis-lab/biobert-v1.1"
 checkpoint_weight = "models_temp/hponer_epoch280_f1_0.9561/pytorch_model.bin"
-colors = {'VA': 'red', 'Laterality': 'blue', 'Vision': 'green'}
+colors = {'VA': '#f8aeab', 'Laterality': '#77bb41', 'Vision': '#f9e24e'}
 
 
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
@@ -33,7 +33,7 @@ def load_assets(device, checkpoint_weight, checkpoint):
 	return model, tag2idx, tag_values, tokenizer
 
 
-def coloring(sentence, entities, colors):
+def coloring_md(sentence, entities, colors): # only work with streamlit => 1.16
 	# Iterate over the entities and color the corresponding text in the sentence
 	offset = 0
 	for entity in entities:
@@ -46,6 +46,27 @@ def coloring(sentence, entities, colors):
 	# Print the colored sentence
 	return sentence
 
+def coloring_html(sentence, entities, colors):
+	# Iterate over the entities and color the corresponding text in the sentence
+	offset = 0
+	for entity in entities:
+		start = entity['start'] + offset
+		end = entity['end'] + offset
+		color = colors.get(entity['label'], 'black')
+		sentence = sentence[:start] + f"<b><span style='background-color: {color};'>{sentence[start:end]}</span></b>" + sentence[end:]
+		offset += len(f"<b><span style='background-color: {color};'></span></b>")
+
+	# Print the colored sentence
+	return sentence
+
+def print_labels():
+	offset = 0
+	sentence = ''
+	for label in list(colors):
+		color = colors[label] 
+		sentence += f"<b><span style='background-color: {color};'>{label}</span></b>   "
+		offset += len(f"<b><span style='background-color: {color};'></span></b>")
+	st.markdown(sentence, unsafe_allow_html=True)
 
 # Creating UI
 st.title('VABERT')
@@ -55,7 +76,7 @@ st.caption('* Diagnosis: Right Full Thickness Macular Hole  Aided Vision: RE 6/6
 st.caption("* Diagnosis: POAG, R cataract, L Phaco+IOL and Trabectome March 2013 VA's: R 6/6, L 6/4 IOP's R 21, L 17 mmHg")
 
 # Preparing
-model, tag2idx, tag_values, tokenizer, nlp = load_assets(device, checkpoint_weight, checkpoint)
+model, tag2idx, tag_values, tokenizer = load_assets(device, checkpoint_weight, checkpoint)
 tokenized_sentence = tokenizer.encode(test_sentence)
 input_ids = torch.tensor([tokenized_sentence]).cpu()
 
@@ -80,5 +101,6 @@ if st.button('Run'):
 	spans = get_ents_from_bio(tokenized_batch, new_labels, test_sentence)
 
 	#  Display
-	colored_sent =  coloring(test_sentence, spans, colors)
-	st.markdown()
+	print_labels()
+	colored_sent =  coloring_html(test_sentence, spans, colors)
+	st.markdown(colored_sent, unsafe_allow_html=True)
